@@ -8,9 +8,8 @@ class Client(AbstractUser):
         COSMETOLOGIST = "cosmetologist", "Cosmetologist"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    email = models.EmailField(max_length=254)
-    last_name = models.CharField(max_length=30, blank=True, null=True)
-    role = models.CharField(max_length=20, choices=Role.choices, default=Role.CLIENT)
+    email = models.EmailField(max_length=254, unique=True)
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.CLIENT, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
