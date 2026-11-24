@@ -3,11 +3,9 @@ from .serializers import ServiceSerializer
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
 from .models import Service
-from rest_framework.permissions import BasePermission
+from .permissions import IsCosmetologist
 
-class IsCosmetologist(BasePermission):
-    def has_permission(self, request, view):
-        return request.user.role == "cosmetologist"
+
 
 class ServiceViewset(ModelViewSet):
     serializer_class = ServiceSerializer
