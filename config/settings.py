@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "apps.users",
     "apps.services",
+    "apps.schedule",
 ]
 
 MIDDLEWARE = [

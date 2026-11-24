@@ -6,7 +6,7 @@ router = DefaultRouter()
 router.register(
     r"services",
     ServiceViewset,
-    basename="service"
+    basename="service",
 )
 
 urlpatterns = router.urls

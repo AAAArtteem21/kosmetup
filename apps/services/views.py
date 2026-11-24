@@ -1,8 +1,8 @@
 from django.shortcuts import render
-from serializers import ServiceSerializer
+from .serializers import ServiceSerializer
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
-from models import Service
+from .models import Service
 from rest_framework.permissions import BasePermission
 
 class IsCosmetologist(BasePermission):
