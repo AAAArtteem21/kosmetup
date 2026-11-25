@@ -37,4 +37,25 @@ class ScheduleSerializer(serializers.ModelSerializer):
                     "End time must be later than start time."
                 )
 
+        is_active = attrs.get(
+            "is_active",
+            self.instance.is_active if self.instance else True
+        )
+
+        existing = Schedule.objects.filter(
+            weekday=attrs.get("weekday", self.instance.weekday if self.instance else None),
+            is_active=True,
+            start_time__lt=end_time,
+            end_time__gt=start_time,
+        )
+
+        if is_active:
+            if self.instance:
+                existing = existing.exclude(pk=self.instance.pk)
+
+            if existing.exists():
+                raise serializers.ValidationError(
+                    "Time is conflicting with schedule"
+                )
+
         return attrs
