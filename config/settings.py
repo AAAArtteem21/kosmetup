@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "apps.services",
     "apps.schedule",
     "apps.bookings",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
