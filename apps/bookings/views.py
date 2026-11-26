@@ -55,3 +55,54 @@ class BookingViewSet(ModelViewSet):
         booking.save(update_fields=["status", "updated_at"])
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsCosmetologist])
+    def confirm(self, request, pk=None):
+        with transaction.atomic():
+            booking = self.get_queryset().select_for_update().get(pk=pk)
+            if booking.status != Booking.Status.PENDING:
+                raise serializers.ValidationError(
+                    "You cannot confirm a booking that is not pending."
+                )
+            booking.status = Booking.Status.CONFIRMED
+            booking.save(update_fields=["status", "updated_at"])
+            create_notification(
+                recipient=booking.client,
+                booking=booking,
+                notification_type=Notification.NotificationType.BOOKING_CONFIRMED,
+                message="Ваша запись подтведжена."
+            )
+
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def cancel(self, request, pk=None):
+        with transaction.atomic():
+            booking = self.get_queryset().select_for_update().get(pk=pk)
+            if booking.status == Booking.Status.COMPLETED or booking.status == Booking.Status.CANCELLED:
+                raise serializers.ValidationError(
+                    "You cannot cancel a booking in status completed or cancelled"
+                )
+            booking.status = Booking.Status.CANCELLED
+            booking.save(update_fields=["status", "updated_at"])
+            create_notification(
+                recipient=booking.client,
+                booking=booking,
+                notification_type=Notification.NotificationType.BOOKING_CANCELLED,
+                message="Ваша запись отменена."
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsCosmetologist])
+    def complete(self, request, pk=None):
+        with transaction.atomic():
+            booking = self.get_queryset().select_for_update().get(pk=pk)
+            if booking.status != Booking.Status.CONFIRMED:
+                raise serializers.ValidationError(
+                    "You can complete only a confirmed booking."
+                )
+            booking.status = Booking.Status.COMPLETED
+            booking.save(update_fields=["status", "updated_at"])
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
