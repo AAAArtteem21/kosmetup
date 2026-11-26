@@ -6,6 +6,9 @@ from .models import Booking
 from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from apps.notifications.services import create_notification
+from apps.notifications.models import Notification
+from django.db import transaction
 
 
 class BookingViewSet(ModelViewSet):
@@ -26,7 +29,15 @@ class BookingViewSet(ModelViewSet):
         return Booking.objects.filter(client=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(client=self.request.user)
+        with transaction.atomic():
+            booking = serializer.save(client=self.request.user)
+
+            create_notification(
+                recipient=self.request.user,
+                booking=booking,
+                notification_type=Notification.NotificationType.BOOKING_CREATED,
+                message="Ваша запись создана",
+            )
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated],)
     def cancel(self, request, pk=None):
