@@ -54,6 +54,62 @@ class BookingSerializer(serializers.ModelSerializer):
 
             return booking
 
+    def update(self, instance, validated_data):
+        with transaction.atomic():
+            booking = Booking.objects.select_for_update().get(pk=instance.pk)
+
+            if booking.status in [
+                Booking.Status.CANCELLED,
+                Booking.Status.COMPLETED,
+            ]:
+                raise serializers.ValidationError(
+                    "Cannot update a cancelled or completed booking."
+                )
+            booking_datetime = timezone.make_aware(
+                datetime.combine(booking.date, booking.start_time)
+            )
+
+            if booking_datetime <= timezone.now():
+                raise serializers.ValidationError(
+                    "Cannot update a booking that has already started."
+                )
+
+            service = validated_data.get("service", booking.service)
+            start_time = validated_data.get("start_time", booking.start_time)
+            date = validated_data.get("date", booking.date)
+
+            start_datetime = datetime.combine(date, start_time)
+            end_datetime = start_datetime + timedelta(
+                minutes=service.duration_minutes
+            )
+
+            if end_datetime.date() != date:
+                raise serializers.ValidationError(
+                    "Booking cannot cross midnight."
+                )
+
+            end_time = end_datetime.time()
+
+            self.validate_working_hours(date, start_time, end_time)
+
+            self.validate_booking_conflicts(
+                date,
+                start_time,
+                end_time,
+                booking_id=booking.id,
+            )
+
+            validated_data.update({
+                "total_price": service.cost,
+                "end_time": end_time,
+            })
+
+            for field, value in validated_data.items():
+                setattr(booking, field, value)
+            booking.save()
+            return booking
+
+
     def validate_service(self, service):
         if not service.is_active:
             raise serializers.ValidationError(
