@@ -13,6 +13,7 @@ from django.db import transaction
 
 class BookingViewSet(ModelViewSet):
     serializer_class = BookingSerializer
+    http_method_names = ["get", "post", "put", "patch", "head", "options"]
 
     def get_permissions(self):
         if self.action in ["update", "partial_update"]:
@@ -38,23 +39,6 @@ class BookingViewSet(ModelViewSet):
                 notification_type=Notification.NotificationType.BOOKING_CREATED,
                 message="Ваша запись создана",
             )
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated],)
-    def cancel(self, request, pk=None):
-        booking = self.get_object()
-        if booking.status == Booking.Status.COMPLETED:
-            raise serializers.ValidationError(
-                "Your booking is completed"
-            )
-        if booking.status == Booking.Status.CANCELLED:
-            raise serializers.ValidationError(
-                "Your booking is already cancelled"
-            )
-
-        booking.status = Booking.Status.CANCELLED
-        booking.save(update_fields=["status", "updated_at"])
-
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], permission_classes=[IsCosmetologist])
     def confirm(self, request, pk=None):
