@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from apps.notifications.services import create_notification
 from apps.notifications.models import Notification
 from django.db import transaction
+from apps.users.models import Client
 
 
 class BookingViewSet(ModelViewSet):
@@ -90,3 +91,29 @@ class BookingViewSet(ModelViewSet):
             booking.save(update_fields=["status", "updated_at"])
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def my_history(self, request):
+        if request.user.role == Client.Role.COSMETOLOGIST:
+            raise serializers.ValidationError(
+                "Only clients can view their history."
+            )
+
+        bookings = Booking.objects.filter(
+            client=request.user
+        ).order_by("-date", "-start_time")
+
+        status_filter = request.query_params.get("status")
+
+        if status_filter:
+            valid_statuses = Booking.Status.values
+
+            if status_filter not in valid_statuses:
+                raise serializers.ValidationError({
+                    "status": "Invalid booking status."
+                })
+
+            bookings = bookings.filter(status=status_filter)
+
+        serializer = self.get_serializer(bookings, many=True)
+        return Response(serializer.data)
