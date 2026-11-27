@@ -44,46 +44,8 @@ class BookingSerializer(serializers.ModelSerializer):
             start_datetime = datetime.combine(date, start_time)
             end_datetime = start_datetime + timedelta(minutes=duration_minutes)
             end_time = end_datetime.time()
-            exception = ScheduleException.objects.filter(date=date).first()
-
-            if exception:
-                if exception.is_day_off:
-                    raise serializers.ValidationError(
-                        "Cosmetologist does not work on this date."
-                    )
-
-                working_intervals = [
-                    (exception.start_time, exception.end_time)
-                ]
-            else:
-                working_intervals = list(
-                    Schedule.objects.filter(
-                        weekday=date.weekday(),
-                        is_active=True
-                    ).values_list("start_time", "end_time")
-                )
-
-            if not any(
-                working_start <= start_time and end_time <= working_end
-                for working_start, working_end in working_intervals
-            ):
-                raise serializers.ValidationError(
-                    "Booking time is outside working hours."
-                )
-            conflicting_bookings = Booking.objects.filter(
-                date=date,
-                start_time__lt=end_time,
-                end_time__gt=start_time,
-            ).exclude(
-                status__in=[
-                    Booking.Status.CANCELLED,
-                ]
-            )
-
-            if conflicting_bookings.exists():
-                raise serializers.ValidationError(
-                    "Conflict with another booking"
-                )
+            self.validate_working_hours(date, start_time, end_time)
+            self.validate_booking_conflicts(date, start_time, end_time)
             validated_data.update({
                 "total_price": service.cost,
                 "end_time": end_time,
@@ -115,3 +77,46 @@ class BookingSerializer(serializers.ModelSerializer):
                 })
 
         return attrs
+
+    def validate_working_hours(self, date, start_time, end_time):
+        exception = ScheduleException.objects.filter(date=date).first()
+
+        if exception:
+            if exception.is_day_off:
+                raise serializers.ValidationError(
+                    "Cosmetologist does not work on this date."
+                )
+
+            working_intervals = [(exception.start_time, exception.end_time)]
+        else:
+            working_intervals = list(
+                Schedule.objects.filter(
+                    weekday=date.weekday(),
+                    is_active=True,
+                ).values_list("start_time", "end_time")
+            )
+
+        if not any(
+            working_start <= start_time and end_time <= working_end
+            for working_start, working_end in working_intervals
+        ):
+            raise serializers.ValidationError(
+                "Booking time is outside working hours."
+            )
+
+    def validate_booking_conflicts(
+        self, date, start_time, end_time, booking_id=None
+    ):
+        conflicting_bookings = Booking.objects.filter(
+            date=date,
+            start_time__lt=end_time,
+            end_time__gt=start_time,
+        ).exclude(status=Booking.Status.CANCELLED)
+
+        if booking_id is not None:
+            conflicting_bookings = conflicting_bookings.exclude(id=booking_id)
+
+        if conflicting_bookings.exists():
+            raise serializers.ValidationError(
+                "Conflict with another booking"
+            )
