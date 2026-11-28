@@ -9,6 +9,8 @@ from rest_framework.response import Response
 from apps.notifications.services import create_notification
 from apps.notifications.models import Notification
 from django.db import transaction
+from django.db.models import Sum, Count
+from decimal import Decimal
 from apps.users.models import Client
 
 
@@ -117,3 +119,40 @@ class BookingViewSet(ModelViewSet):
 
         serializer = self.get_serializer(bookings, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsCosmetologist])
+    def statistics(self, request):
+        booking = Booking.objects.all()
+        total_bookings = booking.count()
+        completed_bookings = booking.filter(status=Booking.Status.COMPLETED).count()
+        canceled_bookings = booking.filter(status=Booking.Status.CANCELLED).count()
+        pending_bookings = booking.filter(status=Booking.Status.PENDING).count()
+        confirmed_bookings = booking.filter(status=Booking.Status.CONFIRMED).count()
+        total_revenue = booking.filter(
+            status=Booking.Status.COMPLETED
+        ).aggregate(
+            total_sum=Sum("total_price")
+        )["total_sum"] or Decimal("0.00")
+
+        return Response({
+            "total_bookings": total_bookings,
+            "completed_bookings": completed_bookings,
+            "canceled_bookings": canceled_bookings,
+            "pending_bookings": pending_bookings,
+            "confirmed_bookings": confirmed_bookings,
+            "total_revenue": total_revenue,
+            }
+        )
+
+    @action(detail=False, methods=["get"], permission_classes=[IsCosmetologist])
+    def popular_services(self, request):
+        top_booking = Booking.objects.filter(
+            status=Booking.Status.COMPLETED
+        ).values(
+            "service__name"
+        ).annotate(
+            booking_count=Count("id")
+        ).order_by("-booking_count")[:5]
+
+        return Response(top_booking)
+            
