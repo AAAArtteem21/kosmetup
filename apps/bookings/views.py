@@ -9,8 +9,9 @@ from rest_framework.response import Response
 from apps.notifications.services import create_notification
 from apps.notifications.models import Notification
 from django.db import transaction
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Avg
 from decimal import Decimal
+from datetime import date
 from apps.users.models import Client
 
 
@@ -155,4 +156,50 @@ class BookingViewSet(ModelViewSet):
         ).order_by("-booking_count")[:5]
 
         return Response(top_booking)
-            
+
+    @action(detail=False, methods=["get"], permission_classes=[IsCosmetologist])
+    def revenue(self, request):
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+
+        try:
+            if date_from:
+                date_from = date.fromisoformat(date_from)
+
+            if date_to:
+                date_to = date.fromisoformat(date_to)
+
+        except ValueError:
+            raise serializers.ValidationError(
+                "Invalid date format. Use YYYY-MM-DD."
+            )
+
+        if date_from and date_to and date_from > date_to:
+            raise serializers.ValidationError(
+                "date_from cannot be later than date_to."
+            )
+
+        booking = Booking.objects.filter(
+            status=Booking.Status.COMPLETED
+        )
+
+        if date_from:
+            booking = booking.filter(date__gte=date_from)
+
+        if date_to:
+            booking = booking.filter(date__lte=date_to)
+
+        statistics = booking.aggregate(
+            total_revenue=Sum("total_price"),
+            average_check=Avg("total_price"),
+        )
+
+        total_revenue = statistics["total_revenue"] or Decimal("0.00")
+        average_check = statistics["average_check"] or Decimal("0.00")
+        completed_bookings = booking.count()
+
+        return Response({
+            "total_revenue": total_revenue,
+            "average_check": average_check,
+            "completed_bookings": completed_bookings,
+        })
